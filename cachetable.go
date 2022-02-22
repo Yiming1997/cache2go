@@ -231,7 +231,7 @@ func (table *CacheTable) LPush(key interface{}, lifeSpan time.Duration, data int
 		} else {
 			op, ok := r.data.([]interface{})
 			if ok {
-				op = append(op, data)
+				op[0] = data
 			} else {
 				return nil
 			}
