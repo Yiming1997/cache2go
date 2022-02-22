@@ -9,6 +9,7 @@ package cache2go
 
 import (
 	"log"
+	"reflect"
 	"sort"
 	"sync"
 	"time"
@@ -193,6 +194,10 @@ func (table *CacheTable) addInternal(item *CacheItem) {
 	}
 }
 
+//func (table *CacheTable) ListInternal(item *CacheItem) {
+//
+//}
+
 // Add adds a key/value pair to the cache.
 // Parameter key is the item's cache-key.
 // Parameter lifeSpan determines after which time period without an access the item
@@ -206,6 +211,37 @@ func (table *CacheTable) Add(key interface{}, lifeSpan time.Duration, data inter
 	table.addInternal(item)
 
 	return item
+}
+
+func (table *CacheTable) LPush(key interface{}, lifeSpan time.Duration, data interface{}) *CacheItem {
+	/**
+	  At first check whether the list key exists
+	  and then check the key corresponding val type whether is list
+	  if it is false we should return err or we create a list with the key name or add it to the list head
+	*/
+	r, ok := table.items[key]
+	if !ok { //the key does not exist , create a list
+		item := NewCacheItem(key, lifeSpan, data)
+		return item
+	} else {
+		dataType := reflect.TypeOf(r.data)
+		dataKind := dataType.Kind()
+		if dataKind != reflect.Slice { //如果不是list类型
+			return nil
+		} else {
+			op, ok := r.data.([]interface{})
+			if ok {
+				op = append(op, data)
+			} else {
+				return nil
+			}
+		}
+	}
+	//item := NewCacheItem(key, lifeSpan, data)
+	//table.Lock()
+	//table.addInternal(item)
+	return nil
+
 }
 
 func (table *CacheTable) deleteInternal(key interface{}) (*CacheItem, error) {
