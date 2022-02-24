@@ -8,6 +8,8 @@
 package cache2go
 
 import (
+	"errors"
+	"fmt"
 	"log"
 	"reflect"
 	"sort"
@@ -202,6 +204,7 @@ func (table *CacheTable) addInternal(item *CacheItem) {
 // Parameter key is the item's cache-key.
 // Parameter lifeSpan determines after which time period without an access the item
 // will get removed from the cache.
+
 // Parameter data is the item's value.
 func (table *CacheTable) Add(key interface{}, lifeSpan time.Duration, data interface{}) *CacheItem {
 	item := NewCacheItem(key, lifeSpan, data)
@@ -213,35 +216,77 @@ func (table *CacheTable) Add(key interface{}, lifeSpan time.Duration, data inter
 	return item
 }
 
-func (table *CacheTable) LPush(key interface{}, lifeSpan time.Duration, data interface{}) *CacheItem {
+func (table *CacheTable) LPush(key interface{}, lifeSpan time.Duration, data interface{}) (*CacheItem, error) {
 	/**
 	  At first check whether the list key exists
 	  and then check the key corresponding val type whether is list
-	  if it is false we should return err or we create a list with the key name or add it to the list head
+	  if it is false we should return err or create a list with the key name or add it to the list head
 	*/
+	table.Lock()
 	r, ok := table.items[key]
 	if !ok { //the key does not exist , create a list
-		item := NewCacheItem(key, lifeSpan, data)
-		return item
+		slice := make([]interface{}, 0, 10)
+		slice = append(slice, data)
+		item := NewCacheItem(key, lifeSpan, slice)
+		table.items[item.key] = item
+		//r.data = item
+		defer table.Unlock()
+		return item, nil
 	} else {
 		dataType := reflect.TypeOf(r.data)
 		dataKind := dataType.Kind()
 		if dataKind != reflect.Slice { //如果不是list类型
-			return nil
+			return nil, errors.New("the type is not list")
 		} else {
 			op, ok := r.data.([]interface{})
 			if ok {
-				op[0] = data
+				op = append([]interface{}{data}, op...)
+				r.data = op
+				defer table.Unlock()
+				fmt.Println(op)
 			} else {
-				return nil
+				defer table.Unlock()
+				return nil, errors.New("type failed to convert")
 			}
 		}
 	}
-	//item := NewCacheItem(key, lifeSpan, data)
-	//table.Lock()
-	//table.addInternal(item)
-	return nil
+	return r, nil
+}
 
+func (table *CacheTable) RPush(key interface{}, lifeSpan time.Duration, data interface{}) (*CacheItem, error) {
+	/**
+	  At first check whether the list key exists
+	  and then check the key corresponding val type whether is list
+	  if it is false we should return err or create a list with the key name or add it to the list head
+	*/
+	table.Lock()
+	r, ok := table.items[key]
+	if !ok { //the key does not exist , create a list
+		slice := make([]interface{}, 0, 10)
+		slice = append(slice, data)
+		item := NewCacheItem(key, lifeSpan, slice)
+		table.items[item.key] = item
+		//r.data = item
+		defer table.Unlock()
+		return item, nil
+	} else {
+		dataType := reflect.TypeOf(r.data)
+		dataKind := dataType.Kind()
+		if dataKind != reflect.Slice { //如果不是list类型
+			return nil, errors.New("the type is not list")
+		} else {
+			op, ok := r.data.([]interface{})
+			if ok {
+				op = append(op, data)
+				r.data = op
+				defer table.Unlock()
+			} else {
+				//defer table.Unlock()
+				return nil, errors.New("type failed to convert")
+			}
+		}
+	}
+	return r, nil
 }
 
 func (table *CacheTable) deleteInternal(key interface{}) (*CacheItem, error) {
