@@ -192,6 +192,7 @@ func (table *CacheTable) addInternal(item *CacheItem) {
 
 	// If we haven't set up any expiration check timer or found a more imminent item.
 	if item.lifeSpan > 0 && (expDur == 0 || item.lifeSpan < expDur) {
+
 		table.expirationCheck()
 	}
 }
@@ -229,9 +230,7 @@ func (table *CacheTable) LPush(key interface{}, lifeSpan time.Duration, data int
 		slice = append(slice, data)
 		item := NewCacheItem(key, lifeSpan, slice)
 		table.items[item.key] = item
-		//r.data = item
-		defer table.Unlock()
-		return item, nil
+		table.Unlock()
 	} else {
 		dataType := reflect.TypeOf(r.data)
 		dataKind := dataType.Kind()
@@ -250,6 +249,22 @@ func (table *CacheTable) LPush(key interface{}, lifeSpan time.Duration, data int
 			}
 		}
 	}
+
+	expDur := table.cleanupInterval
+	addedItem := table.addedItem
+
+	//Trigger callback after adding an item to cache.
+	if addedItem != nil {
+		for _, callback := range addedItem {
+			callback(r)
+		}
+	}
+
+	// If we haven't set up any expiration check timer or found a more imminent item.
+	if r.lifeSpan > 0 && (expDur == 0 || r.lifeSpan < expDur) {
+		table.expirationCheck()
+	}
+
 	return r, nil
 }
 
@@ -265,10 +280,9 @@ func (table *CacheTable) RPush(key interface{}, lifeSpan time.Duration, data int
 		slice := make([]interface{}, 0, 10)
 		slice = append(slice, data)
 		item := NewCacheItem(key, lifeSpan, slice)
+		r = item
 		table.items[item.key] = item
-		//r.data = item
-		defer table.Unlock()
-		return item, nil
+		table.Unlock()
 	} else {
 		dataType := reflect.TypeOf(r.data)
 		dataKind := dataType.Kind()
@@ -281,11 +295,26 @@ func (table *CacheTable) RPush(key interface{}, lifeSpan time.Duration, data int
 				r.data = op
 				defer table.Unlock()
 			} else {
-				//defer table.Unlock()
+				defer table.Unlock()
 				return nil, errors.New("type failed to convert")
 			}
 		}
 	}
+
+	expDur := table.cleanupInterval
+	addedItem := table.addedItem
+
+	if addedItem != nil {
+		for _, callback := range addedItem {
+			callback(r)
+		}
+	}
+
+	// If we haven't set up any expiration check timer or found a more imminent item.
+	if r.lifeSpan > 0 && (expDur == 0 || r.lifeSpan < expDur) {
+		table.expirationCheck()
+	}
+
 	return r, nil
 }
 
