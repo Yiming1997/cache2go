@@ -17,6 +17,9 @@ import (
 	"time"
 )
 
+type Student interface {
+}
+
 // CacheTable is a table within the cache
 type CacheTable struct {
 	sync.RWMutex
@@ -215,6 +218,54 @@ func (table *CacheTable) Add(key interface{}, lifeSpan time.Duration, data inter
 	table.addInternal(item)
 
 	return item
+}
+
+func (table *CacheTable) RRange(key interface{}, start, end int) ([]interface{}, error) {
+	table.RLock()
+	defer table.RUnlock()
+
+	r, ok := table.items[key]
+	if !ok {
+		return nil, errors.New("the key does not exist")
+	} else {
+
+		dataType := reflect.TypeOf(r.data)
+		dataKind := dataType.Kind()
+		if dataKind != reflect.Slice { //如果不是list类型
+			return nil, errors.New("the type is not list")
+		} else {
+			op, ok := r.data.([]interface{})
+			reverseSlice := reverse(op)
+			if ok {
+				return reverseSlice[start:end], nil
+			} else {
+				return nil, errors.New("type failed to convert")
+			}
+		}
+	}
+}
+
+func (table *CacheTable) LRange(key interface{}, start, end int) ([]interface{}, error) {
+	table.RLock()
+	defer table.RUnlock()
+
+	r, ok := table.items[key]
+	if !ok {
+		return nil, errors.New("the key does not exist")
+	} else {
+		dataType := reflect.TypeOf(r.data)
+		dataKind := dataType.Kind()
+		if dataKind != reflect.Slice { //如果不是list类型
+			return nil, errors.New("the type is not list")
+		} else {
+			op, ok := r.data.([]interface{})
+			if ok {
+				return op[start:end], nil
+			} else {
+				return nil, errors.New("type failed to convert")
+			}
+		}
+	}
 }
 
 func (table *CacheTable) LPush(key interface{}, lifeSpan time.Duration, data interface{}) (*CacheItem, error) {
@@ -478,4 +529,11 @@ func (table *CacheTable) log(v ...interface{}) {
 	}
 
 	table.logger.Println(v...)
+}
+
+func reverse(s []interface{}) []interface{} {
+	for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
+		s[i], s[j] = s[j], s[i]
+	}
+	return s
 }

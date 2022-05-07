@@ -9,6 +9,7 @@ package cache2go
 
 import (
 	"bytes"
+	"fmt"
 	"log"
 	"strconv"
 	"sync"
@@ -22,13 +23,18 @@ var (
 	v = "testvalue"
 )
 
-type Student struct {
-	Name string
-}
-
 func TestList(*testing.T) {
 	table := Cache("testCache")
-	table.RPush("list1", 1*time.Second, "123456")
+	table.RPush("list1", 60*time.Second, "1")
+	table.RPush("list1", 60*time.Second, "2")
+	table.RPush("list1", 60*time.Second, "3")
+	table.RPush("list1", 60*time.Second, "4")
+	//time.Sleep(100*time.Millisecond)
+	//data := table.items["list1"]
+	//fmt.Println("data",data)
+	slice1, _ := table.RRange("list1", 0, 10)
+	fmt.Println("slice1", slice1)
+
 }
 
 func TestCache(t *testing.T) {
